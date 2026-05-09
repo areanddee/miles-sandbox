@@ -1,0 +1,42 @@
+# miles-sandbox -- .gitignore
+#
+# Per CLAUDE.md "Repo layout":
+#   results/ is the registry of every measurement (JSON + HLO text). Payloads
+#   are NOT committed -- they are regenerable by re-running the tests, and
+#   committing them would inflate the repo and create false provenance for
+#   re-runs that overwrite. Reports under reports/ quote numbers and link
+#   to the JSON path that produced them; the JSON itself lives only in the
+#   running session, in Colab download artifacts, or in a separate archive.
+
+# --- Test results: regenerable, not committed -----------------------------
+# Keep the directory tree itself via results/.gitkeep so test code that
+# expects results/ to exist does not need to mkdir defensively.
+results/**
+!results/.gitkeep
+
+# --- Python ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Jupyter / Colab ------------------------------------------------------
+.ipynb_checkpoints/
+
+# --- Editor / OS ----------------------------------------------------------
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Ad-hoc dumps and session artifacts -----------------------------------
+*.log
+scratch/
+sessions/
+.env
+.envrc

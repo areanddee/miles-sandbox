@@ -1,0 +1,43 @@
+miles-sandbox
+Copyright 2026 Richard Loft
+
+This product is licensed under the Apache License, Version 2.0 (the
+"License"); you may not use this product except in compliance with the
+License. You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+The full license text is included in the LICENSE file at the root of
+this distribution.
+
+----------------------------------------------------------------------
+
+About this project
+
+miles-sandbox is a JAX / TPU risk-reduction sandbox. It produces
+microbenchmarks, HLO analyses, and short technical memos that answer
+TPU-specific feasibility questions about a possible future JAX port of
+the MILES-CREDIT weather modeling framework.
+
+This work is conducted in coordination with the MILES (Machine
+Integration and Learning for Earth Systems) group at NSF NCAR. It is
+not a UCAR / NCAR product, and no endorsement by UCAR or NCAR is
+implied.
+
+----------------------------------------------------------------------
+
+Provenance with respect to miles-credit
+
+This project references but does not include, vendor, modify, or
+redistribute code from the miles-credit project
+(https://github.com/NCAR/miles-credit), which is itself licensed under
+the Apache License, Version 2.0. References to CREDIT source in this
+project's tests, reports, and documentation are by path:line citation
+to a read-only sibling clone of the upstream repository; no CREDIT
+files are copied or redistributed here.
+
+If, in the future, code originally derived from miles-credit is
+incorporated into a derivative work that ships from this repository,
+the relevant copyright notices and the upstream NOTICE (if any) must
+be preserved as required by the Apache License, Version 2.0,
+Section 4.
