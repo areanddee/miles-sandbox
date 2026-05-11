@@ -5,11 +5,14 @@ import from stdlib, pinned third-party packages, and ``tests._common`` --
 never from another ``test_NN_*.py`` file.
 
 Functions:
-    is_tpu()       Lazy, cached check for whether JAX sees a TPU device.
-    tpu_info()     Hardware/software identifiers for the results registry.
-    dump_result()  Write a measurement payload to results/<test>/<stamp>.json.
-    hlo_text()     Compiled HLO as text, for op-counting before timing.
-    op_counts()    Count named ops in HLO text (rule 6: HLO before timing).
+    is_tpu()             Lazy, cached check for whether JAX sees a TPU device.
+    tpu_info()           Hardware/software identifiers for the results registry.
+    atomic_write_json()  Atomic JSON write (write-temp-then-rename); safe for
+                         incremental result logs that may be consumed live.
+    dump_result()        Write a measurement payload to results/<test>/<stamp>.json
+                         atomically.
+    hlo_text()           Compiled HLO as text, for op-counting before timing.
+    op_counts()          Count named ops in HLO text (rule 6: HLO before timing).
 
 This module avoids importing JAX at top level so test files can be inspected
 or fail fast (e.g., on the working-directory guard) without paying the JAX
@@ -93,8 +96,35 @@ def tpu_info() -> dict[str, Any]:
     return info
 
 
+def atomic_write_json(path: Path, payload: dict[str, Any]) -> Path:
+    """Write JSON to ``path`` atomically.
+
+    Writes to ``<path>.partial`` first, fsyncs, then ``os.replace`` to
+    the final name. ``os.replace`` is atomic on POSIX, so a process
+    death mid-write leaves the final file either untouched (rename
+    hadn't happened) or fully written (rename had happened) -- a
+    downstream reader never sees a half-written JSON.
+
+    Used by ``dump_result`` for one-shot writes, and exposed for tests
+    that manage their own per-run JSON path and rewrite incrementally
+    after each completed measurement (e.g., test_01).
+
+    Parent directory is created if missing. Returns the resolved path.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".partial")
+    text = json.dumps(payload, indent=2, default=str)
+    with open(tmp, "w") as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+    return path.resolve()
+
+
 def dump_result(test_name: str, payload: dict[str, Any]) -> Path:
-    """Write a result file under ``results/<test_name>/<utc-stamp>.json``.
+    """Write a result file under ``results/<test_name>/<utc-stamp>.json`` atomically.
 
     Called *during* test execution, not at the end. Per CLAUDE.md, Colab
     sessions can die at any time; results must land on disk as they are
@@ -102,13 +132,12 @@ def dump_result(test_name: str, payload: dict[str, Any]) -> Path:
 
     Augments the caller's payload with a ``_meta`` block carrying
     ``tpu_info()`` plus the timestamp and test name, so every committed
-    result row carries its own provenance.
+    result row carries its own provenance. Atomicity comes from
+    ``atomic_write_json``.
 
     Returns the absolute path written.
     """
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out_dir = Path("results") / test_name
-    out_dir.mkdir(parents=True, exist_ok=True)
     enriched = {
         **payload,
         "_meta": {
@@ -117,9 +146,7 @@ def dump_result(test_name: str, payload: dict[str, Any]) -> Path:
             "test_name": test_name,
         },
     }
-    path = out_dir / f"{stamp}.json"
-    path.write_text(json.dumps(enriched, indent=2, default=str))
-    return path.resolve()
+    return atomic_write_json(Path("results") / test_name / f"{stamp}.json", enriched)
 
 
 def hlo_text(jit_fn, *args, **kwargs) -> str:
