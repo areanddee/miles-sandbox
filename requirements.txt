@@ -1,55 +1,50 @@
 # miles-sandbox -- pinned dependencies
 #
-# Pin date:  2026-05-08  (scaffold draft)
-# Source:    PyPI; libtpu wheels resolved via Google's TPU release index
-#            https://storage.googleapis.com/jax-releases/libtpu_releases.html
+# Pin status:
+#   - jax, jaxlib, numpy, scipy, s2fft pinned to versions OBSERVED in a
+#     working Colab TPU v6e session (2026-05-08 s2fft install smoke test).
+#   - tensorflow, xarray, zarr, netCDF4, h5netcdf, pyyaml are scaffold pins
+#     for the not-yet-implemented Test 05 (host data pipeline) and have NOT
+#     been verified against the current Colab Python / TPU environment.
+#     Verify when Test 05 implementation begins.
 #
-# *** SCAFFOLD PINS -- HUMAN VERIFICATION REQUIRED BEFORE FIRST INSTALL ***
-#
-# These pins are intentionally conservative starting points drawn from
-# late-2024 known-stable baselines.  They are 18 months old as of the pin
-# date above and may not install cleanly on Colab against a current TPU v6e
-# runtime / libtpu release.  Per CLAUDE.md rule 13, any change to JAX or
-# JAX-related dependencies is a human decision -- TPU / JAX / libtpu version
-# interactions are real, and a silent bump can mask or introduce numerical
-# regressions on TPU MXUs.
-#
-# Recommended verification before first Colab session:
-#   1. Open the JAX TPU release index above and pick a (jax, jaxlib, libtpu)
-#      triple known to work on Colab TPU v6e at the current date.
-#   2. Update jax, jaxlib, and the libtpu line below to that triple.
-#   3. Confirm s2fft, xarray, zarr, tensorflow, netCDF4, h5netcdf still
-#      resolve against the Python version Colab is shipping.
-#   4. Run Cell 2 of any notebook in notebooks/ in a clean Colab session;
-#      if pip resolves cleanly and the working-directory guard passes,
-#      these pins are good enough for first runs.
+# Per CLAUDE.md rule 13, any future change to jax / jaxlib / libtpu is a
+# human decision -- TPU / JAX / libtpu version interactions are real, and
+# a silent bump can mask or introduce numerical regressions on TPU MXUs.
 #
 # Install command for Colab (the -f flag is required for libtpu wheels):
 #   pip install -q -r requirements.txt \
 #       -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
 
 # --- JAX / TPU stack -------------------------------------------------------
-jax==0.4.35
-jaxlib==0.4.35
-# libtpu pin is paired with jaxlib; verify exact version from the release
-# index above. Listed but commented to force a conscious human pin:
+# Versions observed working in Colab TPU v6e session, 2026-05-08.
+jax==0.7.2
+jaxlib==0.7.2
+# libtpu pin is paired with jaxlib; resolved automatically via the -f index
+# in the install command above. Pin explicitly here once the working
+# (jax, jaxlib, libtpu) triple is locked in by a successful Test 01 run.
 # libtpu==0.0.<TBD>
 
 # --- Test 01: spherical harmonics on TPU -----------------------------------
-s2fft==1.1.4
+# Version observed working in Colab TPU v6e session, 2026-05-08.
+s2fft==1.4.0
 
 # --- Test 05: host data pipeline -------------------------------------------
-# tensorflow is CPU-only on the Colab TPU host (TPU is fed via tf.data, not
-# TF execution); install the standard wheel, not tensorflow-tpu.
+# SCAFFOLD PINS -- not yet verified. Verify when Test 05 implementation
+# begins. tensorflow is CPU-only on the Colab TPU host (TPU is fed via
+# tf.data, not TF execution); install the standard wheel, not tensorflow-tpu.
 tensorflow==2.18.0
 xarray==2024.10.0
-zarr==2.18.3       # pre-zarr-3 to avoid breaking-change churn during scaffold
+zarr==2.18.3
 netCDF4==1.7.2
 h5netcdf==1.4.1
 
 # --- Numerics + utilities --------------------------------------------------
-numpy==1.26.4      # last NumPy 1.x; safer for older JAX/TPU XLA bindings
-pyyaml==6.0.2      # YAML configs follow CLAUDE.md rule 11 float convention
+# numpy and scipy versions observed in Colab TPU v6e session, 2026-05-08.
+# scipy is a transitive dep of s2fft; pinned explicitly for reproducibility.
+numpy==2.0.2
+scipy==1.16.3
+pyyaml==6.0.2      # SCAFFOLD pin; YAML configs follow CLAUDE.md rule 11.
 
 # --- Inspection ------------------------------------------------------------
 # HLO extraction and JSON results emission use only the standard library;
