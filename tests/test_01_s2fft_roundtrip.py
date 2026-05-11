@@ -74,8 +74,14 @@ import os
 assert os.path.basename(os.getcwd()) == "miles-sandbox", (
     f"Tests must run from miles-sandbox/, got {os.getcwd()}"
 )
+# CREDIT is referenced only by path in docstrings for this test; not
+# required at runtime. Many Colab sessions won't have it cloned (it's
+# a 300 MB repo, mostly git history). Soft-warn if absent rather than
+# blocking. Tests that actually read CREDIT source at runtime should
+# hard-assert; this one doesn't.
 CREDIT = os.path.abspath("../miles-credit")
-assert os.path.isdir(CREDIT), f"CREDIT clone not found at {CREDIT}"
+if not os.path.isdir(CREDIT):
+    print(f"NOTE: ../miles-credit not present at {CREDIT} -- not required for Test 01.")
 
 # Pin matmul precision BEFORE any JAX op so the fp32 path actually runs
 # at fp32 (TPU's default would silently downgrade matmuls). CLAUDE.md
