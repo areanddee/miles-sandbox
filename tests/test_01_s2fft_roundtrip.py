@@ -85,6 +85,7 @@ jax.config.update("jax_default_matmul_precision", "highest")
 
 import time
 from datetime import datetime, timezone
+from importlib.metadata import version as pkg_version
 from pathlib import Path
 
 import numpy as np
@@ -275,7 +276,7 @@ def main():
 
     payload = {
         "test_name": "test_01_s2fft_roundtrip",
-        "s2fft_version": s2fft.__version__,
+        "s2fft_version": pkg_version("s2fft"),
         "sampling": SAMPLING,
         "spin": SPIN,
         "reality": REALITY,
