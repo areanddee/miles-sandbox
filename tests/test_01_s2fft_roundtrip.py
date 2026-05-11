@@ -172,26 +172,44 @@ def measure_path(L: int, flm_input, precision: str):
         t0 = time.perf_counter()
         compiled = jit_rt.lower(flm_input).compile()
         compile_s = time.perf_counter() - t0
+    print(f"    [{precision}] compile_s={compile_s:.2f}; extracting HLO...", flush=True)
 
     # HLO inspection BEFORE warm-call timing (CLAUDE.md rule 6). Sharing
     # the compile we just timed avoids a second compile for HLO extraction.
     hlo = compiled.as_text()
     counts = op_counts(hlo, OPS_OF_INTEREST)
+    n_hlo_lines = hlo.count("\n") + 1
+    print(
+        f"    [{precision}] HLO {n_hlo_lines} lines; running "
+        f"{N_THROWAWAY} throwaway + {N_TRIALS} timed trial(s)...",
+        flush=True,
+    )
 
     # Throw-away warm call (HBM staging, dispatch warmup).
-    for _ in range(N_THROWAWAY):
+    for i in range(N_THROWAWAY):
+        t0 = time.perf_counter()
         out = compiled(flm_input)
         out.block_until_ready()
+        print(
+            f"    [{precision}] throwaway {i+1}/{N_THROWAWAY}: "
+            f"{time.perf_counter() - t0:.3f} s",
+            flush=True,
+        )
 
     # Timed warm trials.
     trials_s = []
     rt_output = None
-    for _ in range(N_TRIALS):
+    for i in range(N_TRIALS):
         t0 = time.perf_counter()
         out = compiled(flm_input)
         out.block_until_ready()  # JAX is async; without this we time launch only
-        trials_s.append(time.perf_counter() - t0)
+        dt = time.perf_counter() - t0
+        trials_s.append(dt)
         rt_output = out
+        print(
+            f"    [{precision}] trial {i+1}/{N_TRIALS}: {dt:.3f} s",
+            flush=True,
+        )
 
     record = {
         "precision": precision,
