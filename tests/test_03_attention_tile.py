@@ -28,8 +28,6 @@ import os
 assert os.path.basename(os.getcwd()) == "miles-sandbox", (
     f"Tests must run from miles-sandbox/, got {os.getcwd()}"
 )
-CREDIT = os.path.abspath("../miles-credit")
-assert os.path.isdir(CREDIT), f"CREDIT clone not found at {CREDIT}"
 
 
 raise NotImplementedError(

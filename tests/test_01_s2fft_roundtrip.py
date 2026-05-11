@@ -8,16 +8,18 @@ time, warm per-call time, and round-trip accuracy in coefficient space.
 Compare bf16 against an fp32 reference.
 
 Decision boundary: if s2fft cannot complete the round-trip in well under
-one second on TPU v6e, the polar Laplacian filter strategy in
-``$CREDIT/credit/pol_lapdiff_filt.py`` needs to be rethought before any
-JAX port is undertaken.
+one second on TPU v6e, the polar Laplacian filter strategy in CREDIT's
+``credit/pol_lapdiff_filt.py`` needs to be rethought before any JAX
+port is undertaken.
 
 Procedure: see ``docs/test_specs.md``. This file is the implementation;
 the spec governs the procedure and the pre-stated success criteria.
 
-CREDIT reference: ``$CREDIT/credit/pol_lapdiff_filt.py`` (uses
+Upstream reference: CREDIT's ``credit/pol_lapdiff_filt.py`` (uses
 ``torch_harmonics.RealSHT``, ``InverseRealSHT``, ``RealVectorSHT``,
-``InverseRealVectorSHT``).
+``InverseRealVectorSHT``). Citation only -- per CLAUDE.md rule 14,
+CREDIT source needed at runtime would be cached under
+``miles_credit_cache/``; Test 01 needs no such cache.
 
 Design notes
 ------------
@@ -74,14 +76,6 @@ import os
 assert os.path.basename(os.getcwd()) == "miles-sandbox", (
     f"Tests must run from miles-sandbox/, got {os.getcwd()}"
 )
-# CREDIT is referenced only by path in docstrings for this test; not
-# required at runtime. Many Colab sessions won't have it cloned (it's
-# a 300 MB repo, mostly git history). Soft-warn if absent rather than
-# blocking. Tests that actually read CREDIT source at runtime should
-# hard-assert; this one doesn't.
-CREDIT = os.path.abspath("../miles-credit")
-if not os.path.isdir(CREDIT):
-    print(f"NOTE: ../miles-credit not present at {CREDIT} -- not required for Test 01.")
 
 # Pin matmul precision BEFORE any JAX op so the fp32 path actually runs
 # at fp32 (TPU's default would silently downgrade matmuls). CLAUDE.md

@@ -280,6 +280,14 @@ These adapt the Wraptor rules. Read them carefully.
     `requirements.txt` is pinned. Upgrading jax or jaxlib is a human
     decision because TPU/JAX/libtpu version interactions are real.
 
+14. CREDIT source needed by sandbox code is cached, not referenced. When a test requires CREDIT source — a function, a constant, a config snippet, anything — the developer copies the relevant file or extracted function into miles_credit_cache/ under the same relative path as in the upstream repo. For example, ../miles-credit/credit/models/wxformer/crossformer.py becomes miles_credit_cache/credit/models/wxformer/crossformer.py. Each cached file begins with a header comment recording the upstream path and the upstream git commit hash at the time of caching:
+
+python# Cached from miles-credit/credit/models/wxformer/crossformer.py
+# Upstream commit: <40-char SHA>
+# Cached on: <ISO date>
+
+Test code imports from miles_credit_cache/ like any other sandbox module. Test code never imports from ../miles-credit/, manipulates sys.path to reach it, or hardcodes absolute paths into it. A test must run with CREDIT absent from disk; Colab clones miles-sandbox only, and the cache travels with the sandbox.
+
 ## Test scope and ordering
 
 Tests are ordered by **highest-information-per-hour** for a Gift-stage
