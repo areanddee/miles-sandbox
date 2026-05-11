@@ -151,10 +151,10 @@ def generate_random_flm(L: int, seed: int):
 def make_round_trip(L: int):
     """Closure capturing L; returns the SHT round-trip function flm -> flm."""
     def round_trip(flm):
-        f = s2fft.transform.spherical.inverse_jax(
+        f = s2fft.transforms.spherical.inverse_jax(
             flm, L=L, sampling=SAMPLING, spin=SPIN, reality=REALITY
         )
-        return s2fft.transform.spherical.forward_jax(
+        return s2fft.transforms.spherical.forward_jax(
             f, L=L, sampling=SAMPLING, spin=SPIN, reality=REALITY
         )
     return round_trip
