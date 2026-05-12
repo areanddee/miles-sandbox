@@ -595,8 +595,51 @@ def compute_decision(payload: dict) -> dict:
     # Tag against cell (f); cell (i) is the remat-mitigation fallback.
     remat_required = False
     if cell_f is None or cell_f.get("skipped"):
-        tag = "unknown"
-        reason = "scan_backprop N=6 not measured"
+        # N=6 backprop not directly measured (typically because an earlier
+        # N OOMed and short-circuited it). Per spec, "OOMs even with
+        # remat" is red regardless of whether N=6 was reached; derive
+        # tag from lower-N OOM evidence in both backprop modes.
+        def _first_oom_N(mode_key):
+            for N in N_VALUES:
+                c = (payload.get(mode_key) or {}).get(f"N={N}")
+                if c and c.get("oom"):
+                    return N
+            return None
+
+        def _any_success(mode_key):
+            for N in N_VALUES:
+                c = (payload.get(mode_key) or {}).get(f"N={N}")
+                if c and not c.get("oom") and not c.get("skipped") and "step_s_median" in c:
+                    return True
+            return False
+
+        bp_oom_N = _first_oom_N("scan_backprop")
+        remat_oom_N = _first_oom_N("scan_backprop_remat")
+
+        if bp_oom_N is not None and remat_oom_N is not None:
+            tag = "red"
+            reason = (
+                f"OOMs even with remat (spec red criterion). "
+                f"Evidence: scan_backprop['N={bp_oom_N}'] (oom=True, see "
+                f"error_msg) and scan_backprop_remat['N={remat_oom_N}'] "
+                f"(oom=True). scan_backprop N=6 was not reached because "
+                f"the sweep short-circuited after the lower-N OOM."
+            )
+            remat_required = True
+        elif bp_oom_N is not None and _any_success("scan_backprop_remat"):
+            tag = "yellow"
+            reason = (
+                f"scan_backprop['N={bp_oom_N}'] OOMed; "
+                f"scan_backprop_remat succeeded at some N. Remat is "
+                f"required (spec yellow criterion)."
+            )
+            remat_required = True
+        else:
+            tag = "unknown"
+            reason = (
+                "scan_backprop N=6 not measured; insufficient OOM "
+                "evidence in lower-N cells to derive a tag."
+            )
     elif cell_f.get("oom"):
         # Backprop fails; remat may rescue.
         if cell_i and not cell_i.get("oom") and not cell_i.get("skipped") and "step_s_median" in cell_i:
