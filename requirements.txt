@@ -3,10 +3,14 @@
 # Pin status:
 #   - jax, jaxlib, numpy, scipy, s2fft pinned to versions OBSERVED in a
 #     working Colab TPU v6e session (2026-05-08 s2fft install smoke test).
-#   - tensorflow, xarray, zarr, netCDF4, h5netcdf, pyyaml are scaffold pins
-#     for the not-yet-implemented Test 05 (host data pipeline) and have NOT
-#     been verified against the current Colab Python / TPU environment.
-#     Verify when Test 05 implementation begins.
+#   - equinox unpinned; the resolved version is recorded in the test_04
+#     _meta block on first Colab install and can be pinned from there.
+#   - Test 05 deps (tensorflow + xarray/zarr/netCDF4/h5netcdf) are
+#     COMMENTED OUT below -- they conflicted with jax 0.7.2 on Colab
+#     (2026-05-12): tensorflow 2.18.0 pre-dates numpy 2.x and pulls
+#     incompatible numpy/protobuf/ml-dtypes. Restore + re-pin to
+#     verified versions when Test 05 implementation begins.
+#   - pyyaml left as a scaffold pin; harmless with the current stack.
 #
 # Per CLAUDE.md rule 13, any future change to jax / jaxlib / libtpu is a
 # human decision -- TPU / JAX / libtpu version interactions are real, and
@@ -36,15 +40,18 @@ s2fft==1.4.0
 # under model.equinox_version). Per CLAUDE.md rule 13, do not silently bump.
 equinox
 
-# --- Test 05: host data pipeline -------------------------------------------
-# SCAFFOLD PINS -- not yet verified. Verify when Test 05 implementation
-# begins. tensorflow is CPU-only on the Colab TPU host (TPU is fed via
-# tf.data, not TF execution); install the standard wheel, not tensorflow-tpu.
-tensorflow==2.18.0
-xarray==2024.10.0
-zarr==2.18.3
-netCDF4==1.7.2
-h5netcdf==1.4.1
+# --- Test 05: host data pipeline (COMMENTED OUT) ---------------------------
+# Disabled 2026-05-12 due to pip resolution conflict between tensorflow
+# 2.18.0 (pre-numpy-2.x; pulls older numpy/protobuf/ml-dtypes) and
+# jax/jaxlib 0.7.2 (post-numpy-2.x). Uncomment and re-pin to verified
+# versions when Test 05 implementation begins. tensorflow is CPU-only
+# on the Colab TPU host (TPU is fed via tf.data, not TF execution);
+# install the standard wheel, not tensorflow-tpu.
+# tensorflow==2.18.0
+# xarray==2024.10.0
+# zarr==2.18.3
+# netCDF4==1.7.2
+# h5netcdf==1.4.1
 
 # --- Numerics + utilities --------------------------------------------------
 # numpy and scipy versions observed in Colab TPU v6e session, 2026-05-08.
