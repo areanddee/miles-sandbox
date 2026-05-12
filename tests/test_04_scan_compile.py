@@ -142,8 +142,15 @@ YELLOW_STEP_RATIO = 30         # < 30 = yellow else red
 ABORT_COMPILE_S = 30 * 60      # abort the run entirely if even baseline hits this
 
 OPS_OF_INTEREST = [
+    # HLO dialect names (what compiled.as_text() would return, post-XLA).
     "dot", "dot-general", "convolution", "gather", "scatter",
     "all-reduce", "reduce", "transpose", "while", "scan",
+    # StableHLO dialect names (what lowered.as_text() typically returns
+    # in modern JAX). Whichever dialect _get_hlo_text recovers from the
+    # Equinox-wrapped Lowered will have meaningful counts.
+    "stablehlo.dot", "stablehlo.dot_general", "stablehlo.convolution",
+    "stablehlo.gather", "stablehlo.scatter",
+    "stablehlo.reduce", "stablehlo.transpose", "stablehlo.while",
 ]
 
 
@@ -364,6 +371,46 @@ def is_oom(exc: BaseException) -> bool:
     )
 
 
+def _get_hlo_text(lowered) -> tuple[str, str]:
+    """Best-effort HLO/StableHLO text extraction from a Lowered.
+
+    Equinox's ``filter_jit`` wraps the underlying ``jax.stages.Lowered`` in
+    an ``eqx.Module`` (and similarly for ``Compiled``) that does not
+    proxy ``as_text`` through. Walk a few plausible attribute paths to
+    reach the underlying JAX object, and try the HLO dialect first
+    (matches ``OPS_OF_INTEREST`` naming) then fall back to the default
+    dialect (typically StableHLO in modern JAX).
+
+    Returns ``(text, dialect_label)`` where ``dialect_label`` is one of
+    ``"hlo"``, ``"stablehlo"``. Raises ``AttributeError`` if nothing
+    plausible exposes ``.as_text``.
+    """
+    candidates = [lowered]
+    for attr in ("_lowered", "lowered", "_fun", "_inner"):
+        inner = getattr(lowered, attr, None)
+        if inner is not None and inner not in candidates:
+            candidates.append(inner)
+
+    for cand in candidates:
+        for call, label in (
+            (lambda c=cand: c.as_text(dialect="hlo"), "hlo"),
+            (lambda c=cand: c.as_text("hlo"), "hlo"),
+            (lambda c=cand: c.as_text(), "stablehlo"),
+        ):
+            try:
+                txt = call()
+            except (AttributeError, TypeError, ValueError, KeyError):
+                continue
+            if isinstance(txt, str) and txt:
+                return txt, label
+
+    raise AttributeError(
+        f"Could not extract HLO from lowered of type "
+        f"{type(lowered).__name__} (tried attrs: _lowered, lowered, "
+        f"_fun, _inner)"
+    )
+
+
 def trial_stats(trials: list[float]) -> dict:
     return {
         "trials_s": trials,
@@ -437,10 +484,14 @@ def measure_cell(
 
     hbm_before = read_hbm()
 
-    # Compile (timed).
+    # Compile (timed). Split lower + compile so HLO can be extracted from
+    # the lowered side: Equinox's filter_jit wraps Compiled in an
+    # eqx.Module that does not proxy .as_text() through. The lowered
+    # wrapper may or may not -- _get_hlo_text walks both possibilities.
     try:
         t0 = time.perf_counter()
-        compiled = fn.lower(*args).compile()
+        lowered = fn.lower(*args)
+        compiled = lowered.compile()
         compile_s = time.perf_counter() - t0
     except Exception as e:
         if is_oom(e):
@@ -456,16 +507,26 @@ def measure_cell(
     print(f"    [{label}] compile_s = {compile_s:.2f}", flush=True)
 
     # HLO inspection before warm calls (CLAUDE.md rule 6).
-    hlo = compiled.as_text()
+    try:
+        hlo, hlo_dialect = _get_hlo_text(lowered)
+    except AttributeError as e:
+        print(f"    [{label}] HLO extraction failed: {e}", flush=True)
+        hlo, hlo_dialect = "", "unavailable"
     hlo_bytes = len(hlo.encode("utf-8"))
-    counts = op_counts(hlo, OPS_OF_INTEREST)
+    counts = op_counts(hlo, OPS_OF_INTEREST) if hlo else {}
     hlo_name = "baseline" if mode == "baseline" else f"{mode}_N{N}"
     hlo_path = out_dir / f"hlo_{hlo_name}_{run_stamp}.txt"
-    hlo_path.write_text(hlo)
+    if hlo:
+        hlo_path.write_text(hlo)
+    # Surface either HLO-dialect or StableHLO-dialect counts in the log line,
+    # whichever has nonzero values (dialect label tells us which we got).
+    dots = counts.get("dot", 0) + counts.get("dot-general", 0)
+    stablehlo_dots = counts.get("stablehlo.dot", 0) + counts.get("stablehlo.dot_general", 0)
     print(
-        f"    [{label}] HLO bytes={hlo_bytes:,}, dots={counts.get('dot', 0)} "
-        f"+ dot-generals={counts.get('dot-general', 0)}, "
-        f"scans={counts.get('scan', 0)}, whiles={counts.get('while', 0)}",
+        f"    [{label}] HLO bytes={hlo_bytes:,} dialect={hlo_dialect}, "
+        f"dots={dots if hlo_dialect == 'hlo' else stablehlo_dots}, "
+        f"scans={counts.get('scan', 0) + counts.get('stablehlo.while', 0)}, "
+        f"whiles={counts.get('while', 0) + counts.get('stablehlo.while', 0)}",
         flush=True,
     )
 
@@ -480,6 +541,7 @@ def measure_cell(
             "error_msg": str(oom_exc)[:500],
             "compile_s": compile_s,
             "hlo_bytes": hlo_bytes,
+            "hlo_dialect": hlo_dialect,
             "hlo_op_counts": counts,
             "hlo_path": str(hlo_path),
             "hbm_before": hbm_before,
@@ -488,6 +550,7 @@ def measure_cell(
     record = {
         "compile_s": compile_s,
         "hlo_bytes": hlo_bytes,
+        "hlo_dialect": hlo_dialect,
         "hlo_op_counts": counts,
         "hlo_path": str(hlo_path),
         "hbm_before": hbm_before,
