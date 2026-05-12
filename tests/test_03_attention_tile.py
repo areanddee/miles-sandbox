@@ -96,6 +96,16 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+# Reset matmul precision to JAX default ("default" = bf16-mul / fp32-acc on
+# TPU MXU, the realistic transformer case). DEFENSIVE: if a previous test
+# in the same Colab kernel set this to "highest" (Test 04 does for its
+# bf16-vs-fp32 numerics question), Test 03 would otherwise inherit it and
+# silently run every matmul through the bf16x6 emulated-fp32 path, which
+# is 3-6x slower than native bf16 and would make util_percent numbers
+# 3-6x too low. The actual setting in effect is recorded in _meta via
+# _common.tpu_info() so the JSON is self-describing on re-runs.
+jax.config.update("jax_default_matmul_precision", "default")
+
 from _common import is_tpu, tpu_info, op_counts, atomic_write_json
 
 

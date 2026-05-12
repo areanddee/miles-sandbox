@@ -74,6 +74,14 @@ def tpu_info() -> dict[str, Any]:
         info["device_kind"] = (
             getattr(devices[0], "device_kind", None) if devices else None
         )
+        # JAX's global matmul precision affects whether bf16 inputs run at
+        # native bf16 ("default" -> bf16-mul/fp32-acc) or emulated fp32
+        # ("highest" -> bf16x6, 3-6x slower on TPU MXU). Recorded here so
+        # every test's JSON is self-describing about which precision path
+        # produced its numbers.
+        info["matmul_precision"] = getattr(
+            jax.config, "jax_default_matmul_precision", None
+        )
     except Exception as e:
         info["jax_error"] = repr(e)
 
