@@ -62,12 +62,19 @@ Design notes
 - **HLO captured before warm-call timing** (CLAUDE.md rule 6) by
   reading ``compiled.as_text()`` immediately after the timed compile,
   sharing one compile across both timing and inspection.
-- **Per-cell progress prints with flush=True** so a live notebook
-  surfaces timing as it accumulates rather than after each
-  ``measure_*`` function returns (Test 01 lesson).
-- **jax.config.update('jax_log_compiles', True)** enabled so JAX
-  prints a line per compilation event -- extra confirmation of
-  cache-hit vs. cold-compile beyond what ``compile_s`` shows.
+- **Per-warmup AND per-trial progress prints with flush=True** so a
+  live notebook surfaces timing as it accumulates rather than after
+  ``measure_*`` returns (Test 01 lesson). Each of the 5 warmup calls
+  gets its own labeled wall-clock line before the 10 timed trials,
+  eliminating any silent gap between the HLO summary and trial 1/10
+  -- which at L=192 with full MHA could otherwise hide minutes of
+  warmup-side work.
+- **JAX's auto compile-chatter suppressed.** The
+  ``Finished XLA compilation of jit(...) in N sec`` WARNING lines
+  from ``jax._src.dispatch`` are silenced via a logger-level bump.
+  We print ``compile_s`` ourselves with a controlled per-cell label;
+  the JAX-emitted lines duplicate that signal and clutter notebook
+  output. Real warnings from other modules still surface.
 
 Out of scope
 ------------
@@ -84,6 +91,7 @@ assert os.path.basename(os.getcwd()) == "miles-sandbox", (
     f"Tests must run from miles-sandbox/, got {os.getcwd()}"
 )
 
+import logging
 import time
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version as pkg_version
@@ -94,10 +102,12 @@ import jax.numpy as jnp
 import numpy as np
 import equinox as eqx
 
-# JAX-log-compiles printing -- one line per compilation event, useful for
-# distinguishing cold compile from cache hit (CLAUDE.md rule 7 wants the
-# cache state recorded; this just provides extra confirmation).
-jax.config.update("jax_log_compiles", True)
+# Suppress JAX's per-compile chatter (the "Finished XLA compilation..."
+# WARNING lines emitted by jax._src.dispatch). We print compile_s
+# ourselves with a controlled per-cell label; the JAX-emitted lines
+# duplicate that signal and clutter notebook output. Real warnings from
+# other modules still surface at WARNING and above.
+logging.getLogger("jax._src.dispatch").setLevel(logging.ERROR)
 
 from _common import is_tpu, tpu_info, op_counts, atomic_write_json
 
@@ -366,9 +376,15 @@ def trial_stats(trials: list[float]) -> dict:
 def measure_compiled(compiled, args, label: str) -> tuple[dict, BaseException | None]:
     """Run N_WARMUP + N_TRIALS calls; return timing dict + None, or {} + exc on OOM."""
     try:
-        for _ in range(N_WARMUP):
+        for i in range(N_WARMUP):
+            t0 = time.perf_counter()
             out = compiled(*args)
             jax.block_until_ready(out)
+            dt = time.perf_counter() - t0
+            print(
+                f"    [{label}] warmup {i+1}/{N_WARMUP}: {dt:.3f} s",
+                flush=True,
+            )
 
         trials = []
         for i in range(N_TRIALS):
